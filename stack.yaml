@@ -803,7 +803,7 @@ Resources:
     Properties:
       DisableApiTermination: false
       ImageId: !Ref ImageId
-      InstanceType: t1.micro
+      InstanceType: t2.small
       InstanceInitiatedShutdownBehavior: terminate
       KeyName: !If [UsingKeyName, !Ref KeyName, !Ref "AWS::NoValue"]
       SecurityGroupIds:
