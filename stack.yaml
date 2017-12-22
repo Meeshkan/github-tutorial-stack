@@ -125,6 +125,9 @@ Parameters:
     Type: String
     Default: github
     Description: Enter a name for the database to be created.  Default is github.
+Conditions:
+  UsingKeyName:
+    !Not [!Equals [!Ref KeyName, '']]
 Resources:
   githubtutorialvpc:
     Type: 'AWS::EC2::VPC'
@@ -802,8 +805,7 @@ Resources:
       ImageId: !Ref ImageId
       InstanceType: t1.micro
       InstanceInitiatedShutdownBehavior: terminate
-      KeyName:
-        !If [!Not [!Equals [!Ref KeyName, '']], !Ref KeyName, !Ref "AWS::NoValue"]
+      KeyName: !If [UsingKeyName, !Ref KeyName, !Ref "AWS::NoValue"]
       SecurityGroupIds:
         - !Ref sgmonitor
       SubnetId: !Ref publicsubnet
@@ -992,6 +994,4 @@ Outputs:
         - '.execute-api.'
         - !Ref "AWS::Region"
         - '.amazonaws.com/LATEST'
-    Export:
-      Name: Value to export
 Description: Template for the Meeshkan GitHub Tutorial
