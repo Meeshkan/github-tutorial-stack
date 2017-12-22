@@ -1,0 +1,981 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  RavenURL:
+    Type: String
+    Default: ''
+    Description: >-
+      Enter a URL to report errors to raven.  Empty is blank, so no reporting
+      will happen.
+  KeyName:
+    Type: String
+    Description: >-
+      The key name that you will use to SSH into your instances.  This key is REQUIRED.
+      For example, if your private key is foo-bar.pem, the key name is foo-bar.
+      For more information, see http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html.
+  AvailabilityZoneOne:
+    Type: String
+    Default: us-east-1a
+    Description: >-
+      An availability zone in your region.  Note that all of the
+      AvailabilityZone*Parameter values can be the same, but it is good practice
+      to make them different if possible depending on the size of the region.
+      Default is us-east-1a.
+  AvailabilityZoneTwo:
+    Type: String
+    Default: us-east-1b
+    Description: >-
+      An availability zone in your region.  Note that all of the
+      AvailabilityZone*Parameter values can be the same, but it is good practice
+      to make them different if possible depending on the size of the region.
+      Default is us-east-1b.  This is the availability zone where your spot
+      instances will run, so make sure that your bid is based on the price for
+      this zone.
+  AvailabilityZoneThree:
+    Type: String
+    Default: us-east-1c
+    Description: >-
+      An availability zone in your region.  Note that all of the
+      AvailabilityZone*Parameter values can be the same, but it is good practice
+      to make them different if possible depending on the size of the region.
+      Default is us-east-1c.
+  AvailabilityZoneFour:
+    Type: String
+    Default: us-east-1d
+    Description: >-
+      An availability zone in your region.  Note that all of the
+      AvailabilityZone*Parameter values can be the same, but it is good practice
+      to make them different if possible depending on the size of the region.
+      Default is us-east-1d.
+  DataBotRepoUrl:
+    Type: String
+    Default: 'https://github.com/Meeshkan/github-tutorial-data.git'
+    Description: >-
+      The url of the data bot that will be inspecting your API.  Default:
+      https://github.com/Meeshkan/github-tutorial-data.git.
+  DataBotNodeProjectName:
+    Type: String
+    Default: github-tutorial-data
+    Description: >-
+      The name of your node project for data collection.  If you follow standard
+      conventions, this is usually the same as your github repo.  Default:
+      github-tutorial-data.
+  DataWebhookRepoUrl:
+    Type: String
+    Default: 'https://github.com/Meeshkan/github-tutorial-webhook.git'
+    Description: >-
+      The url of the data webhook that will be inspecting your API.  Default:
+      https://github.com/Meeshkan/github-tutorial-webhook.git.
+  DataWebhookNodeProjectName:
+    Type: String
+    Default: github-tutorial-webhook
+    Description: >-
+      The name of your node project for the data webhook.  If you follow
+      standard conventions, this is usually the same as your github repo. 
+      Default: github-tutorial-webhook.
+  ImageId:
+    Type: String
+    Default: ami-55ef662f
+    Description: >-
+      The EC2 image ID to use when spawning a server.  Default is ami-55ef662f. 
+      You probably never will need to change this unless Amazon pulls this
+      image, in which case just substitute it for an image with a sensible
+      version of Amazon Linux installed.
+  SpotPrice:
+    Type: String
+    Default: '0.0042'
+    Description: >-
+      The maximum amount you're willing to spend for an hour of computation time
+      on a single instance.  Default is USD 0.0042.  For a list of current
+      prices, see https://aws.amazon.com/ec2/spot/pricing/.
+  MaxComputations:
+    Type: String
+    Default: '20'
+    Description: >-
+      The maximum number of simultaneous ec2 instances inspecting the github
+      API.  The default is 20, which is also AWS's default.  To raise this above
+      20, you must ask AWS for a service limit increase.
+  MaxCommits:
+    Type: String
+    Default: '100'
+    Description: The maximum number of commits to inspect for each repo.  Default is 100.
+  MaxRepos:
+    Type: String
+    Default: '600000'
+    Description: The maximum number of repos we want to inspect.  Default is 600000.
+  StartRepo:
+    Type: String
+    Default: '1234567'
+    Description: Enter an initial repo id for data collection.  Default is 1234567.
+  GithubApi:
+    Type: String
+    Default: 'https://api.github.com'
+    Description: 'Enter a URL for the github api.  Default is https://api.github.com.'
+  RDSMasterUsername:
+    Type: String
+    Default: octocat
+    Description: Enter a master username for your database.  Default is octocat.
+  RDSMasterUserPassword:
+    Type: String
+    Default: feedmesomerepos
+    Description: >-
+      Enter a master password for your database's master user.  Default is
+      feedmesomerepos.
+  RDSDBName:
+    Type: String
+    Default: github
+    Description: Enter a name for the database to be created.  Default is github.
+Resources:
+  githubtutorialvpc:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      InstanceTenancy: default
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'false'
+      Tags:
+        - Key: Name
+          Value: github-tutorial-vpc
+  databasesubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.5.0/24
+      AvailabilityZone: !Ref AvailabilityZoneTwo
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: database-subnet-2
+  databasesubnet3:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.6.0/24
+      AvailabilityZone: !Ref AvailabilityZoneThree
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: database-subnet-3
+  lambdasubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.8.0/22
+      AvailabilityZone: !Ref AvailabilityZoneThree
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: lambda-subnet-1
+  lambdasubnet3:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.16.0/22
+      AvailabilityZone: !Ref AvailabilityZoneTwo
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: lambda-subnet-3
+  publicsubnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.0.0/22
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Ref AvailabilityZoneTwo
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: public-ec2-subnet
+  databasesubnet4:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.7.0/24
+      AvailabilityZone: !Ref AvailabilityZoneFour
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: database-subnet-4
+  lambdasubnet2:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.12.0/22
+      AvailabilityZone: !Ref AvailabilityZoneOne
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: lambda-subnet-2
+  databasesubnet1:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Ref AvailabilityZoneOne
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: database-subnet-1
+  publicsubnetigw:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Name
+          Value: github-tutorial-igw
+  defaultawsdhcpoptions:
+    Type: 'AWS::EC2::DHCPOptions'
+    Properties:
+      DomainName: ec2.internal
+      DomainNameServers:
+        - AmazonProvidedDNS
+  mainnetworkacl:
+    Type: 'AWS::EC2::NetworkAcl'
+    Properties:
+      VpcId: !Ref githubtutorialvpc
+  dbroutetable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: github-tutorial-db-route-table
+  publicroutetabe:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: github-tutorial-public-route
+  rdsgithubcluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      MasterUsername: !Ref RDSMasterUsername
+      MasterUserPassword: !Ref RDSMasterUserPassword
+      Engine: aurora
+      Port: '3306'
+      DBSubnetGroupName: !Ref dbsubnetgithubsubnetgroup
+      EngineVersion: 5.6.10a
+      DatabaseName: !Ref RDSDBName
+      PreferredBackupWindow: '04:17-04:47'
+      PreferredMaintenanceWindow: 'mon:05:04-mon:05:34'
+      VpcSecurityGroupIds:
+        - !Ref sgdatabase
+  rdsgithubinstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      AllowMajorVersionUpgrade: 'false'
+      AutoMinorVersionUpgrade: 'true'
+      DBClusterIdentifier: !Ref rdsgithubcluster
+      DBInstanceClass: db.r3.large
+      Engine: aurora
+      LicenseModel: general-public-license
+  bucketfortutorial:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Suspended
+  dbsubnetgithubsubnetgroup:
+    Type: 'AWS::RDS::DBSubnetGroup'
+    Properties:
+      DBSubnetGroupDescription: my awesome github data collection subnet
+      SubnetIds:
+        - !Ref databasesubnet3
+        - !Ref databasesubnet4
+        - !Ref databasesubnet1
+        - !Ref databasesubnet2
+  sgmonitor:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: used to monitor and initiate gh tutorial
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: monitor
+  sgdatabase:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: github database security group
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: database
+  sganythinggoes:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: wild west
+      VpcId: !Ref githubtutorialvpc
+      Tags:
+        - Key: Name
+          Value: anything goes
+  allowegressaclrule:
+    Type: 'AWS::EC2::NetworkAclEntry'
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'true'
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+      NetworkAclId: !Ref mainnetworkacl
+  allowingressaclrule:
+    Type: 'AWS::EC2::NetworkAclEntry'
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+      NetworkAclId: !Ref mainnetworkacl
+  associatepublicsubnettomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref publicsubnet
+  associatedatabasesubnet3tomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref databasesubnet3
+  associatedatabasesubnet1tomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref databasesubnet1
+  associatelambdasubnet3tomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref lambdasubnet3
+  associatedatabasesubnet2tomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref databasesubnet2
+  associatelambdasubnet2tomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref lambdasubnet2
+  associatedatabasesubnet4tomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref databasesubnet4
+  associatelambdasubnet1tomain:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      NetworkAclId: !Ref mainnetworkacl
+      SubnetId: !Ref lambdasubnet1
+  mainvpcgatewayattachment:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref githubtutorialvpc
+      InternetGatewayId: !Ref publicsubnetigw
+  subnetroute1:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref dbroutetable
+      SubnetId: !Ref databasesubnet3
+  subnetroute2:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref dbroutetable
+      SubnetId: !Ref databasesubnet1
+  subnetroute3:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref dbroutetable
+      SubnetId: !Ref databasesubnet4
+  subnetroute4:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref dbroutetable
+      SubnetId: !Ref databasesubnet2
+  subnetroute5:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      RouteTableId: !Ref publicroutetabe
+      SubnetId: !Ref publicsubnet
+  route1:
+    Type: 'AWS::EC2::Route'
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref publicroutetabe
+      GatewayId: !Ref publicsubnetigw
+    DependsOn: mainvpcgatewayattachment
+  associatedhcpoptionstovpc:
+    Type: 'AWS::EC2::VPCDHCPOptionsAssociation'
+    Properties:
+      VpcId: !Ref githubtutorialvpc
+      DhcpOptionsId: !Ref defaultawsdhcpoptions
+  httpingressformonitor:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref sgmonitor
+      IpProtocol: tcp
+      FromPort: '80'
+      ToPort: '80'
+      CidrIp: 0.0.0.0/0
+  sshingressformonitor:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref sgmonitor
+      IpProtocol: tcp
+      FromPort: '22'
+      ToPort: '22'
+      CidrIp: 0.0.0.0/0
+  httpsingressformonitor:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref sgmonitor
+      IpProtocol: tcp
+      FromPort: '443'
+      ToPort: '443'
+      CidrIp: 0.0.0.0/0
+  mysqlingressfordatabase:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref sgdatabase
+      IpProtocol: tcp
+      FromPort: '3306'
+      ToPort: '3306'
+      CidrIp: 10.0.0.0/16
+  httpingressforanythinggoes:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref sganythinggoes
+      IpProtocol: tcp
+      FromPort: '80'
+      ToPort: '80'
+      CidrIp: 0.0.0.0/0
+  httpsingressforanythinggoes:
+    Type: 'AWS::EC2::SecurityGroupIngress'
+    Properties:
+      GroupId: !Ref sganythinggoes
+      IpProtocol: tcp
+      FromPort: '443'
+      ToPort: '443'
+      CidrIp: 0.0.0.0/0
+  permissiveegressformonitor:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      GroupId: !Ref sgmonitor
+      IpProtocol: '-1'
+      CidrIp: 0.0.0.0/0
+  permissiveegressfordatabase:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      GroupId: !Ref sgdatabase
+      IpProtocol: '-1'
+      CidrIp: 0.0.0.0/0
+  permissiveegressforanythinggoes:
+    Type: 'AWS::EC2::SecurityGroupEgress'
+    Properties:
+      GroupId: !Ref sganythinggoes
+      IpProtocol: '-1'
+      CidrIp: 0.0.0.0/0
+  ec2policy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: !Join 
+        - '-'
+        - - github-ec2-managed-policy
+          - !Ref 'AWS::StackName'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: LambdaInvokeFunction
+            Effect: Allow
+            Action:
+              - 'lambda:InvokeFunction'
+            Resource: '*'
+          - Sid: SpotInstanceSpawning
+            Effect: Allow
+            Action:
+              - 'ec2:Describe*'
+              - 'ec2:RequestSpotInstances'
+              - 'ec2:RunInstances'
+              - 'ec2:CreateTags'
+            Resource: '*'
+          - Sid: IAMRolePassing
+            Effect: Allow
+            Action:
+              - 'iam:PassRole'
+            Resource: '*'
+          - Sid: LambdaInvoke
+            Effect: Allow
+            Action:
+              - 'lambda:InvokeAsync'
+              - 'lambda:Invoke'
+            Resource: !GetAtt 
+              - monitor
+              - Arn
+          - Sid: FunTimesWithS3Buckets
+            Effect: Allow
+            Action:
+              - 's3:ListBucket'
+            Resource: !GetAtt 
+              - bucketfortutorial
+              - Arn
+          - Sid: FunTimesWithS3
+            Effect: Allow
+            Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+              - 's3:PutObjectAcl'
+            Resource: !Join 
+              - ''
+              - - !GetAtt 
+                  - bucketfortutorial
+                  - Arn
+                - /*
+  ec2instanceprofile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref ec2role
+      InstanceProfileName: !Join 
+        - '-'
+        - - github-ec2-instance-profile
+          - !Ref 'AWS::StackName'
+  ec2role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: 'Allow'
+            Principal:
+              Service: 'ec2.amazonaws.com'
+      ManagedPolicyArns:
+        - !Ref ec2policy
+      RoleName: !Join 
+        - '-'
+        - - github-ec2-role
+          - !Ref 'AWS::StackName'
+  lambdavpcpolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      ManagedPolicyName: !Join 
+        - '-'
+        - - github-lambda-vpc-managed-policy
+          - !Ref 'AWS::StackName'
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+              - 'ec2:CreateNetworkInterface'
+              - 'ec2:DescribeNetworkInterfaces'
+              - 'ec2:DeleteNetworkInterface'
+            Resource: '*'
+  lambdavpcrole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+      ManagedPolicyArns:
+        - !Ref lambdavpcpolicy
+      RoleName: !Join 
+        - '-'
+        - - lambda-vpc-role
+          - !Ref 'AWS::StackName'
+  webhookfunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: 'module.exports.handler = function(_,$,c) { c(null, true); }'
+      Runtime: nodejs6.10
+      FunctionName: !Join 
+        - _
+        - - GithubTutorialWebhook
+          - !Ref 'AWS::StackName'
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt 
+        - lambdavpcrole
+        - Arn
+      Timeout: 10
+      Environment:
+        Variables:
+          MY_SQL_HOST: !GetAtt 
+            - rdsgithubcluster
+            - Endpoint.Address
+          MY_SQL_SSL: Amazon RDS
+          MY_SQL_PORT: !GetAtt 
+            - rdsgithubcluster
+            - Endpoint.Port
+          MY_SQL_USERNAME: !Ref RDSMasterUsername
+          MY_SQL_PASSWORD: !Ref RDSMasterUserPassword
+          MY_SQL_DATABASE: !Ref RDSDBName
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref sganythinggoes
+        SubnetIds:
+          - !Ref lambdasubnet1
+          - !Ref lambdasubnet2
+          - !Ref lambdasubnet3
+  monitor:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: 'module.exports.handler = function(_,$,c) { c(null, {}); }'
+      Runtime: nodejs6.10
+      FunctionName: !Join 
+        - _
+        - - GithubTutorialMonitor
+          - !Ref 'AWS::StackName'
+      Handler: index.handler
+      MemorySize: 128
+      Role: !GetAtt 
+        - lambdavpcrole
+        - Arn
+      Timeout: 10
+  apilambdapermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName:
+        Fn::GetAtt:
+        - webhookfunction
+        - Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        Fn::Join:
+        - ''
+        - - 'arn:aws:execute-api:'
+          - !Ref AWS::Region
+          - ":"
+          - !Ref AWS::AccountId
+          - ":"
+          - !Ref webhookapi
+          - "/*"
+  apigatewaycloudwatchlogsrole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - apigateway.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: ApiGatewayLogsPolicy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:DescribeLogGroups
+            - logs:DescribeLogStreams
+            - logs:PutLogEvents
+            - logs:GetLogEvents
+            - logs:FilterLogEvents
+            Resource: "*"
+  apigatewayaccount:
+    Type: AWS::ApiGateway::Account
+    Properties:
+      CloudWatchRoleArn:
+        Fn::GetAtt:
+        - apigatewaycloudwatchlogsrole
+        - Arn
+  apideployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref webhookapi
+      StageName: DummyStage
+  apistage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref apideployment
+      MethodSettings:
+      - DataTraceEnabled: true
+        HttpMethod: "*"
+        LoggingLevel: INFO
+        ResourcePath: "/*"
+      RestApiId: !Ref webhookapi
+      StageName: LATEST
+  webhookapi:
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Body:
+        swagger: "2.0"
+        info:
+          version: "2017-12-21T12:05:48Z"
+          title: "Github Tutorial Webhook"
+        schemes:
+        - "https"
+        paths:
+          /{dataset-partition}/{which-dataset}/{target-column}/{target-threshold}/{max-commits}/{author-history}/{committer-history}:
+            get:
+              consumes:
+              - "application/json"
+              produces:
+              - "application/json"
+              parameters:
+              - name: "author-history"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "max-commits"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "target-column"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "dataset-partition"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "committer-history"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "which-dataset"
+                in: "path"
+                required: true
+                type: "string"
+              - name: "target-threshold"
+                in: "path"
+                required: true
+                type: "string"
+              responses:
+                '200':
+                  description: "200 response"
+                  schema:
+                    $ref: "#/definitions/Empty"
+              x-amazon-apigateway-integration:
+                responses:
+                  default:
+                    statusCode: "200"
+                uri: !Join 
+                       - ''
+                       - - 'arn:aws:apigateway:'
+                         - !Ref 'AWS::Region'
+                         - ':lambda:path/2015-03-31/functions/'
+                         - !GetAtt 
+                           - webhookfunction
+                           - Arn
+                         - '/invocations'
+                passthroughBehavior: "when_no_templates"
+                httpMethod: "POST"
+                requestTemplates:
+                  application/json: "{\n  \"datasetPartition\" : \"$input.params('dataset-partition')\"\
+                    ,\n  \"whichDataset\" : \"$input.params('which-dataset')\",\n  \"targetColumn\"\
+                    \ : \"$input.params('target-column')\",\n  \"targetThreshold\" : \"$input.params('target-threshold')\"\
+                    ,\n  \"maxCommits\" : \"$input.params('max-commits')\",\n  \"authorHistory\"\
+                    \ : \"$input.params('author-history')\",\n  \"committerHistory\" : \"\
+                    $input.params('committer-history')\",\n  \"refreshStats\" : false,\n \
+                    \ \"n\": \"$input.params('n')\",\n  \"o\": \"$input.params('o')\",\n \
+                    \ \"forcedId\": \"$input.params('id')\"\n}"
+                contentHandling: "CONVERT_TO_TEXT"
+                type: "aws"
+        definitions:
+          Empty:
+            type: "object"
+            title: "Empty Schema"
+      Description: "An API for the github tutorial webhook"
+  bootstrappingec2instance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn:
+      - webhookfunction
+      - monitor
+      - rdsgithubcluster
+      - rdsgithubinstance
+    Properties:
+      DisableApiTermination: false
+      ImageId: !Ref ImageId
+      InstanceType: t1.micro
+      InstanceInitiatedShutdownBehavior: terminate
+      KeyName: !Ref KeyName
+      SecurityGroupIds:
+        - !Ref sgmonitor
+      SubnetId: !Ref publicsubnet
+      IamInstanceProfile: !Ref ec2instanceprofile
+      UserData: !Base64
+        Fn::Join:
+          - "\n"
+          - - "#!/bin/bash"
+            - !Join
+              - ""
+              - - "export RAVEN_URL=\""
+                - !Ref RavenURL
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MY_SQL_HOST=\""
+                - !GetAtt 
+                  - rdsgithubcluster
+                  - Endpoint.Address
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MY_SQL_PORT=\""
+                - !GetAtt 
+                  - rdsgithubcluster
+                  - Endpoint.Port
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MY_SQL_USERNAME=\""
+                - !Ref RDSMasterUsername
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MY_SQL_PASSWORD=\""
+                - !Ref RDSMasterUserPassword
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MY_SQL_DATABASE=\""
+                - !Ref RDSDBName
+                - "\" && \\"
+            - "export MY_SQL_SSL=\"Amazon RDS\" && \\"
+            - !Join
+              - ""
+              - - "export GITHUB_API=\""
+                - !Ref GithubApi
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export START_REPO=\""
+                - !Ref StartRepo
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MAX_REPOS=\""
+                - !Ref MaxRepos
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MAX_COMMITS=\""
+                - !Ref MaxCommits
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MONITOR_FUNCTION=\""
+                - !Join 
+                  - _
+                  - - GithubTutorialMonitor
+                    - !Ref "AWS::StackName"
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export MAX_COMPUTATIONS=\""
+                - !Ref MaxComputations
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export PACKAGE_NAME=\"meeshkan-data-bot.zip\" && \\"
+            - "export PACKAGE_FOLDER=\"meeshkan-data-bot\" && \\"
+            - !Join
+              - ""
+              - - "export PACKAGE_URL=\"https://s3.amazonaws.com/"
+                - !Ref bucketfortutorial
+                - "/meeshkan-data-bot.zip\" && \\"
+            - !Join
+              - ""
+              - - "export GITHUB_TUTORIAL_KEY_NAME=\""
+                - !Ref KeyName
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export GITHUB_TUTORIAL_SUBNET_ID=\""
+                - !Ref publicsubnet
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export GITHUB_TUTORIAL_SECURITY_GROUP_ID=\""
+                - !Ref sgmonitor
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export GITHUB_TUTORIAL_IAM_INSTANCE_ARN=\""
+                - !GetAtt 
+                  - ec2instanceprofile
+                  - Arn
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export GITHUB_TUTORIAL_SPOT_PRICE=\""
+                - !Ref SpotPrice
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export GITHUB_TUTORIAL_IMAGE_ID=\""
+                - !Ref ImageId
+                - "\" && \\"
+            - "export IS_INITIAL=\"true\" && \\"
+            - "cd ~ && \\"
+            - "curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.6/install.sh | bash && \\"
+            - "export NVM_DIR=\"$HOME/.nvm\" && \\"
+            - "[ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\" && \\"
+            - "nvm install 6.11.5 && \\"
+            - "sudo yum -y install git && \\"
+            - !Join
+              - ""
+              - - "git clone "
+                - !Ref DataBotRepoUrl
+                - " data-bot-repo && \\"
+            - "cd data-bot-repo && \\"
+            - "npm run package && \\"
+            - !Join 
+              - ""
+              - - "aws s3api put-object --bucket "
+                - !Ref bucketfortutorial
+                - " --key meeshkan-data-bot.zip --body build/"
+                - !Ref DataBotNodeProjectName
+                - ".zip --acl public-read && \\"
+            - "cd ../ && \\"
+            - !Join 
+              - ""
+              - - "git clone "
+                - !Ref DataWebhookRepoUrl
+                - " data-webhook-repo && \\"
+            - "cd data-webhook-repo && \\"
+            - "npm run package && \\"
+            - !Join 
+              - ""
+              - - "aws s3api put-object --bucket "
+                - !Ref bucketfortutorial
+                - " --key meeshkan-data-webhook.zip --body build/"
+                - !Ref DataWebhookNodeProjectName
+                - ".zip --acl public-read && \\"
+            - "cd ../ && \\"
+            - !Join 
+              - ""
+              - - "aws lambda update-function-code --region "
+                - !Ref "AWS::Region"
+                - " --function-name "
+                - !Join 
+                  - _
+                  - - GithubTutorialWebhook
+                    - !Ref "AWS::StackName"
+                - " --s3-bucket "
+                - !Ref bucketfortutorial
+                - " --s3-key meeshkan-data-webhook.zip --publish && \\"
+            - "mkdir $PACKAGE_FOLDER && \\"
+            - "cd $PACKAGE_FOLDER && \\"
+            - "wget $PACKAGE_URL && \\"
+            - "unzip $PACKAGE_NAME && \\"
+            - "node index.js"
+Outputs:
+  InvokeURL:
+    Description: URL to invoke for the webhook
+    Value: !Join
+      - ''
+      - - 'https://'
+        - !Ref webhookapi
+        - '.execute-api.'
+        - !Ref "AWS::Region"
+        - '.amazonaws.com/LATEST'
+    Export:
+      Name: Value to export
+Description: Template for the Meeshkan GitHub Tutorial
