@@ -32,6 +32,12 @@ The next scren allows you to attach tags to the resources that will be created f
 
 ### 4.
 
-Click on create to create your stack!  Make sure to click 
+Click on create to create your stack!  Make sure to click on **I acknowledge that AWS CloudFormation might create IAM resources with custom names.**
 
 ![Fourth Screen](https://s3.amazonaws.com/meeshkan-github-tutorial/create.png)
+
+### 5.
+
+Fifteen-ish minutes later, everything is created and your data collection stack is chugging along getting data from the GitHub public API!
+
+![Fifth Screen](https://s3.amazonaws.com/meeshkan-github-tutorial/Screen+Shot+2017-12-23+at+8.43.56.png)
