@@ -46,7 +46,7 @@ Fifteen-ish minutes later, everything is created and your data collection stack 
 
 When you want to feed data from your webhook to Meeshkan, you'll want to use the InvokeURL given as an output of your stack.
 
-![Sixth Screen](https://s3.amazonaws.com/meeshkan-github-tutorial/Screen+Shot+2017-12-23+at+9.48.01.png)
+![Sixth Screen](https://s3.amazonaws.com/meeshkan-github-tutorial/Screen+Shot+2017-12-23+at+9.54.04.png)
 
 Here's an example of it being called from curl.
 
