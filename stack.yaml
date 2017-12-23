@@ -1,11 +1,12 @@
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
-  RavenURL:
+  EnableDebugging:
     Type: String
-    Default: ''
+    Default: 'false'
     Description: >-
-      Enter a URL to report errors to raven.  Empty is blank, so no reporting
-      will happen.
+      If set to true, debugging logs will be saved to the database.
+      This slows down data collection but can be useful for visualizing the evolution of the data
+      collection job.
   KeyName:
     Type: String
     Description: >-
@@ -816,8 +817,13 @@ Resources:
           - - "#!/bin/bash"
             - !Join
               - ""
-              - - "export RAVEN_URL=\""
-                - !Ref RavenURL
+              - - "export GITHUB_TUTORIAL_UNIQUE_ID=\""
+                - !Ref "AWS::StackId"
+                - "\" && \\"
+            - !Join
+              - ""
+              - - "export WRITE_DEBUG_LOGS_TO_DB=\""
+                - !Ref EnableDebugging
                 - "\" && \\"
             - !Join
               - ""
