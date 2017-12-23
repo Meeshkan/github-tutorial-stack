@@ -18,6 +18,11 @@ After clicking on the `Launch Stack` button, you'll arrive at a page that looks 
 
 ### 2.
 
-You'll be presented with a few parameters you can tweak.  None of them are required, but I would recommend always filling in the KeyName with a key so that you can SSH into your EC2 instance.  If you do not know what SSH is or what a key is, check out [this link](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AccessingInstancesLinux.html) to see how to make one for your github account.
+You'll be presented with a few parameters you can tweak.  None of them are required, but I would recommend always filling in the KeyName with a key so that you can SSH into your EC2 instance.  If you do not know what SSH is or what a key is, check out [this link](http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AccessingInstancesLinux.html) to see how to make one.
+
+The entire tutorial operates within the AWS ecosystem except for an optional [sentry.io](https://sentry.io) integration that will help you follow errors in realtime.
 
 ![Second Screen](https://s3.amazonaws.com/meeshkan-github-tutorial/Screen+Shot+2017-12-23+at+8.06.46.png)
+
+### 3.
+
