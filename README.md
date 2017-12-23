@@ -26,3 +26,12 @@ The entire tutorial operates within the AWS ecosystem except for an optional [se
 
 ### 3.
 
+The next scren allows you to attach tags to the resources that will be created for your stack.  Tags are a convenient way to sort between multiple stacks running in the same environment, but it's OK to leave them blank.
+
+![Third Screen](https://s3.amazonaws.com/meeshkan-github-tutorial/Screen+Shot+2017-12-23+at+8.32.24.png)
+
+### 4.
+
+Click on create to create your stack!  Make sure to click 
+
+![Fourth Screen](https://s3.amazonaws.com/meeshkan-github-tutorial/create.png)
